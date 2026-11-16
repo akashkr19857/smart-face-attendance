@@ -1,0 +1,22 @@
+# Personal / biometric data - never commit
+data/
+logs/
+reports/
+outputs/
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
+
+# Models: InsightFace buffalo_l is non-commercial research only and too large for GitHub -> scripts/download_models.py
+models/*.onnx
+!models/liveness_minifasnet.onnx
+models/trt_cache/
+
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# marked "Confidential - internal review": keep local, not public
+docs/*.pdf

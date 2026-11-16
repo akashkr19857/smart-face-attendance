@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Gate Attendance</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1e2739; --line: #2a3550; --text: #e7ecf5; --muted: #8a97b2;
+    --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --amber: #f59e0b; --cyan: #06b6d4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 18px; padding: 10px 24px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; color: var(--muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  nav button.active, nav button:hover { background: var(--panel2); color: var(--text); }
+  .sys { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .pill { padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: .4px; }
+  .p-live { background: #16351f; color: var(--green); } .p-setup { background: #3a2a0c; color: var(--amber); }
+  .p-off { background: #2a2f3a; color: var(--muted); } .p-mixed { background: #132a4a; color: #7fb0ff; }
+  main { padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
+  .tab { display: none; } .tab.active { display: block; }
+  .grid { display: grid; gap: 16px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 16px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .tile .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  .tile .v { font-size: 28px; font-weight: 600; margin-top: 2px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cams { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+  .ctl-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .ctl { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); font-size: 13px; }
+  .ctl.on-live { border-color: #22c55e; }
+  .recog { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 26px; }
+  .recog .rc { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
+  .recog .rc.new { border-color: #22c55e; background: #12351f; }
+  .cam img { width: 100%; border-radius: 8px; background: #000; aspect-ratio: 16/9; object-fit: contain; display: block; }
+  .meta { display: flex; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+  .two { grid-template-columns: 2fr 1fr; margin-top: 16px; }
+  @media (max-width: 1000px) { .two, .enroll { grid-template-columns: 1fr !important; } .cams { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  .scroll { max-height: 420px; overflow: auto; }
+  .badge { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+  .b-green { background: #16351f; color: var(--green); } .b-red { background: #3b1717; color: var(--red); }
+  .b-amber { background: #3a2a0c; color: var(--amber); } .b-blue { background: #132a4a; color: #7fb0ff; }
+  .b-grey { background: #2a2f3a; color: var(--muted); } .b-cyan { background: #0d3340; color: var(--cyan); }
+  .alert-item { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .alert-item img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; background: #000; }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 14px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .btn { border-radius: 8px; padding: 9px 15px; font-weight: 600; cursor: pointer; font-size: 14px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.green { background: var(--green); border-color: var(--green); color: #05230f; }
+  .btn.amber { background: var(--amber); border-color: var(--amber); color: #2a1a00; }
+  .btn.danger { background: transparent; color: var(--red); border-color: #5a2323; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn.big { padding: 12px 22px; font-size: 15px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .enroll { grid-template-columns: 330px 1fr; }
+  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16/9; }
+  .stage img, .stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .stage .empty-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+  .quality { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; font-size: 18px; font-weight: 600; min-height: 28px; }
+  .quality .ind { width: 14px; height: 14px; border-radius: 50%; background: var(--muted); flex: none; }
+  .quality.ok { color: var(--green); } .quality.ok .ind { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .quality.bad { color: var(--amber); } .quality.bad .ind { background: var(--amber); }
+  .hint { color: var(--muted); font-size: 13px; }
+  .bar { height: 8px; background: var(--panel2); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width .25s; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; min-height: 84px; }
+  .thumb { position: relative; width: 78px; }
+  .thumb img { width: 78px; height: 78px; border-radius: 8px; object-fit: cover; border: 2px solid var(--line); display: block; }
+  .thumb.bad img { border-color: var(--red); opacity: .7; }
+  .thumb .x { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--red); color: #fff; cursor: pointer; font-weight: 700; line-height: 22px; padding: 0; }
+  .thumb small { display: block; font-size: 10px; color: var(--muted); text-align: center; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; display: none; }
+  .msg.show { display: block; } .msg.ok { background: #16351f; color: var(--green); } .msg.err { background: #3b1717; color: #ff9b9b; } .msg.warn { background: #3a2a0c; color: var(--amber); }
+  .emps { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .emp { display: flex; gap: 12px; align-items: center; }
+  .emp img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: var(--panel2); }
+  .emp .n { font-weight: 600; } .emp .s { color: var(--muted); font-size: 12px; }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 20px; text-align: center; }
+  .gate { margin-bottom: 16px; }
+  .camrow { display: grid; grid-template-columns: 1.4fr .8fr .9fr .9fr 1.2fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .camrow:last-child { border-bottom: 0; }
+  @media (max-width: 900px) { .camrow { grid-template-columns: 1fr 1fr; } }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: flex-start; justify-content: center; z-index: 20; overflow: auto; padding: 40px 16px; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; width: 100%; max-width: 760px; }
+  .modal h2 { margin: 0 0 6px; font-size: 18px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 14px; }
+  .radio { display: flex; gap: 10px; }
+  .radio label { flex: 1; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); background: var(--panel2); }
+  .radio label.on { border-color: var(--accent); background: #132a4a; }
+  .radio input { display: none; }
+  .radio small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .roi { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; margin-top: 6px; cursor: crosshair; }
+  .roi img { width: 100%; height: 100%; object-fit: fill; display: block; }
+  .roi canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .check li { margin: 6px 0; }
+  .stage.pick { cursor: crosshair; }
+  .tune { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+  .field { display: grid; grid-template-columns: 1fr 110px; gap: 4px 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .field:last-child { border-bottom: 0; }
+  .field b { font-weight: 600; font-size: 13px; } .field small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  .field input[type=checkbox] { width: 20px; height: 20px; justify-self: end; }
+  .field input.changed { outline: 2px solid var(--amber); }
+  .preset { text-align: left; padding: 14px 16px; flex: 1; min-width: 240px; }
+  .preset small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  .steps { margin: 0; padding-left: 20px; } .steps li { margin: 5px 0; }
+  .vctl { display: inline-flex; gap: 6px; margin-left: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>&#9673;</span> Smart Gate Attendance</h1>
+  <nav>
+    <button data-tab="live" class="active">Live</button>
+    <button data-tab="register">Register Employee</button>
+    <button data-tab="employees">Employees</button>
+    <button data-tab="cameras">Cameras &amp; Gates</button>
+    <button data-tab="videos">Test Videos</button>
+    <button data-tab="tuning">Tuning</button>
+    <button data-tab="reports">Reports</button>
+  </nav>
+  <div class="sys">
+    <button class="btn danger small" id="bWipe" title="Delete employees, photos, videos and records">&#128465; Delete all data</button>
+    <span class="pill p-setup" id="sysPill">SETUP</span>
+    <button class="btn green" id="bLive">&#9654; Start Live Attendance</button>
+  </div>
+</header>
+
+<main>
+  <!-- LIVE -->
+  <section class="tab active" id="tab-live">
+    <div class="msg warn" id="setupBanner"></div>
+    <div class="grid tiles">
+      <div class="tile"><div class="k">Present today</div><div class="v" id="tPresent">-</div></div>
+      <div class="tile"><div class="k">Attendance records</div><div class="v" id="tRecords">-</div></div>
+      <div class="tile"><div class="k">Passages</div><div class="v" id="tPass">-</div></div>
+      <div class="tile"><div class="k">Security alerts</div><div class="v" id="tAlerts" style="color:var(--red)">-</div></div>
+      <div class="tile"><div class="k">Registered employees</div><div class="v" id="tEmp">-</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">&#127909; Cameras - choose which ones go live</h3>
+        <div class="row">
+          <button class="btn small green" id="allLive">&#9654; All cameras live</button>
+          <button class="btn small amber" id="allStop">&#9208; Stop all live</button>
+          <span class="hint" style="margin:0">Show</span>
+          <select id="camShow" style="width:auto"><option value="on">All cameras that are on</option><option value="live">Only live cameras</option></select>
+          <span class="hint" style="margin:0">Per row</span>
+          <select id="camCols" style="width:auto"><option value="">Auto</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        </div>
+      </div>
+      <div class="ctl-list" id="camCtl"></div>
+      <p class="hint" style="margin:8px 0 0"><b>Live</b> = recognition + attendance on this camera. <b>Setup</b> = preview only. <b>Off</b> = camera closed (no GPU used). Every camera keeps its own attendance records.</p>
+    </div>
+    <div class="grid cams" id="cams"></div>
+    <div class="grid two">
+      <div class="card"><h3>Recent passages</h3><div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Employee</th><th>Gate</th><th>Camera</th><th>Dir</th><th>Match</th><th>Live</th><th>Attendance</th></tr></thead>
+        <tbody id="evBody"></tbody></table></div></div>
+      <div class="card"><h3>Security alerts</h3><div class="scroll" id="alBody"></div></div>
+    </div>
+  </section>
+
+  <!-- REGISTER -->
+  <section class="tab" id="tab-register">
+    <div class="grid enroll">
+      <div class="card">
+        <h3>Employee details</h3>
+        <label>Employee ID * <span class="muted" style="font-weight:400">(only this is required)</span></label><input id="fId" placeholder="EMP001" maxlength="32">
+        <label>Name <span class="muted" style="font-weight:400">(optional)</span></label><input id="fName" placeholder="optional - the ID is used if empty">
+        <label>Department <span class="muted" style="font-weight:400">(optional)</span></label><input id="fDept" placeholder="optional">
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="bNew">New registration</button>
+        </div>
+        <p class="hint">Every employee needs <b>12 to 100 good photos</b> (front, both sides, chin up / down). You can mix the ways below: upload some photos and capture the rest.</p>
+        <label>Padding around the face <span class="muted" style="font-weight:400">(uploads, bulk and click capture)</span></label>
+        <select id="fPad">
+          <option value="auto">Auto (recommended) - added only when needed</option>
+          <option value="0">None - photos as they are</option>
+          <option value="20">Small - 20 %</option>
+          <option value="40">Medium - 40 %</option>
+          <option value="60">Large - 60 %</option>
+          <option value="100">Extra large - 100 %</option>
+          <option value="150">Maximum - 150 %</option>
+        </select>
+        <p class="hint" style="margin-top:4px">Face-only crops need a border so the face can be found. <b>Auto</b> tries the photo as it is, then adds 35 % / 80 % padding, enlarges small photos and turns rotated ones. A fixed value is tried first, Auto is the fallback.</p>
+        <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+        <h3>&#128193; Way 1 - Upload photos</h3>
+        <input type="file" id="fFiles" accept="image/*" multiple>
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="bUpload">Check &amp; add photos</button></div>
+        <p class="hint">Select several photos at once (up to 100). Face-only crops, small photos and rotated photos are fixed automatically (padding added, enlarged, turned). Rejected photos show the reason.</p>
+        <div id="upResults"></div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+        <h3>&#128101; Bulk registration - many employees at once</h3>
+        <p class="hint" style="margin-top:0">Choose the <b>main folder</b>. Inside it, one folder per employee, named with the <b>employee ID</b>:</p>
+        <pre class="hint" style="margin:4px 0 8px;line-height:1.35">all_faces\
+ ├─ EMP001\  photos
+ ├─ EMP002\  photos
+ └─ 1045\    photos</pre>
+        <input type="file" id="fBulk" webkitdirectory directory multiple>
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="bBulk">Register all employees</button></div>
+        <p class="hint">Each employee is checked and saved on its own and needs <b>at least 12 usable photos</b> (up to 100 are used). Face-only crops and small photos get padding (setting above). An existing employee ID is replaced with the new photos.</p>
+        <div id="bulkResults"></div>
+      </div>
+      <div class="card">
+        <h3>Way 2 / 3 - Capture from a camera</h3>
+        <div class="radio" id="regType" style="margin-bottom:10px">
+          <label data-v="camera"><input type="radio" name="rtype">&#127902; Test video / CCTV<small>pause the video, click on the face</small></label>
+          <label data-v="webcam"><input type="radio" name="rtype">&#128187; My webcam<small>the camera of the computer you are using</small></label>
+        </div>
+        <div id="regCamPick"><select id="fSrc"></select></div>
+        <div class="msg warn" id="liveWarn"></div>
+        <div class="row" id="regVideo" style="display:none;margin-bottom:8px">
+          <span class="hint">Video: <b>pause</b> it when the employee's face is clear, then <b>click on the face</b> to capture it.</span>
+          <span class="vctl"><button class="btn small" data-vc="pause">&#9208; Pause</button><button class="btn small" data-vc="resume">&#9654; Play</button><button class="btn small" data-vc="restart">&#8634; Restart</button></span>
+        </div>
+        <div class="stage pick" id="stage" title="Click on a face to capture that person">
+          <img id="sImg" alt="" style="display:none">
+          <video id="sVid" autoplay playsinline muted style="display:none;transform:scaleX(-1)"></video>
+          <canvas id="sCan"></canvas>
+          <div class="empty-msg" id="sEmpty">Choose a camera to start the preview</div>
+        </div>
+        <div class="quality" id="quality"><span class="ind"></span><span id="qText">Waiting for camera...</span></div>
+        <div class="hint" id="suggest"></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary big" id="bCapture">&#128248; Capture photo <span class="muted" style="font-weight:400">(Space)</span></button>
+          <div style="flex:1"></div>
+          <button class="btn green big" id="bSave" disabled>Save employee</button>
+        </div>
+        <div class="bar"><div id="prog"></div></div>
+        <div class="row"><span id="countTxt" class="muted">0 photos</span></div>
+        <div class="thumbs" id="thumbs"></div>
+        <div class="msg" id="eMsg"></div>
+        <div class="row" style="margin-top:8px"><button class="btn danger" id="bForce" style="display:none">Save anyway (not a duplicate)</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMPLOYEES -->
+  <section class="tab" id="tab-employees">
+    <div class="row" style="margin-bottom:14px"><input id="eSearch" placeholder="Search by ID, name or department" style="max-width:360px"><span class="muted" id="empCount"></span></div>
+    <div class="grid emps" id="empGrid"></div>
+  </section>
+
+  <!-- CAMERAS -->
+  <section class="tab" id="tab-cameras">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn primary" id="bAddCam">+ Add camera</button>
+      <span class="hint">Each camera has its own gate, direction and attendance mode. <b>Setup</b> = preview only (no attendance), <b>Live</b> = attendance on, <b>Off</b> = camera closed.</span>
+    </div>
+    <div id="gateList"></div>
+  </section>
+
+  <!-- TEST VIDEOS -->
+  <section class="tab" id="tab-videos">
+    <div class="grid two" style="margin-top:0">
+      <div class="card">
+        <h3>Upload a test video</h3>
+        <input type="file" id="vFile" accept="video/*,.mp4,.avi,.mov,.mkv">
+        <label style="display:flex;gap:8px;align-items:center;color:var(--text)"><input type="checkbox" id="vCam" checked style="width:auto"> Create a test camera that plays this video</label>
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="bVUp">&#11014; Upload video</button><span class="hint" id="vMax"></span></div>
+        <div class="bar"><div id="vProg"></div></div>
+        <div class="hint" id="vStat"></div>
+        <div class="msg" id="vMsg"></div>
+      </div>
+      <div class="card">
+        <h3>How to test with a video</h3>
+        <ol class="steps hint">
+          <li>Upload the video. A <b>test camera</b> is created in setup mode.</li>
+          <li><b>Draw ROI</b> tightly around the walking area. A smaller area = digital zoom = far faces are found better.</li>
+          <li><b>Tuning</b>: for CCTV high up / top-down / side view, press <b>Far / top-down / side view</b>.</li>
+          <li><b>Register Employee</b>: upload photos, and/or choose the test camera, pause the video and click on the employee's face. Photos from the same camera angle give the best accuracy.</li>
+          <li>Press <b>Start Live Attendance</b> and <b>Restart</b> the video. Watch Live, then Reports.</li>
+          <li>Done? <b>Delete all data</b> (top right) removes employees, photos, videos and records.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Uploaded videos</h3>
+      <table><thead><tr><th>Video</th><th>Size</th><th>Test camera</th><th>Playback</th><th></th></tr></thead><tbody id="vBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- TUNING -->
+  <section class="tab" id="tab-tuning">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Quick presets</h3>
+      <div class="row">
+        <button class="btn preset" data-preset="standard"><b>Standard (face-height camera)</b><small>Camera at the gate, people walk up to it. Highest security.</small></button>
+        <button class="btn preset" data-preset="far"><b>Far / side view CCTV</b><small>Camera high up or at an angle, people walk past at a distance, faces about 40-80 px.</small></button>
+        <button class="btn preset" data-preset="topdown"><b>Top-down ceiling CCTV - tiny faces</b><small>Camera on the ceiling over a lobby, faces about 20-50 px. Full-resolution search; draw a tight ROI on the walking path.</small></button>
+      </div>
+      <div class="hint" style="margin-top:10px" id="tFaces"></div>
+      <div class="msg" id="tMsg"></div>
+    </div>
+    <div class="grid tune" id="tGroups"></div>
+    <div class="row" style="margin-top:16px"><div style="flex:1"></div>
+      <button class="btn" id="bTReload">Discard changes</button>
+      <button class="btn primary big" id="bTApply">Apply settings</button></div>
+  </section>
+
+  <!-- REPORTS -->
+  <section class="tab" id="tab-reports">
+    <div class="card">
+      <div class="row">
+        <div><label>Date</label><input type="date" id="rDay"></div>
+        <div><label>Gate</label><select id="rGate"><option value="">All gates</option></select></div>
+        <div><label>Camera</label><select id="rCam"><option value="">All cameras</option></select></div>
+        <div><label>View</label><select id="rView">
+          <option value="records">Attendance records (per camera mode)</option>
+          <option value="summary">Employee summary (first / last seen)</option>
+          <option value="all">All passages</option></select></div>
+        <div style="align-self:flex-end"><button class="btn primary" id="bDl">Download Excel</button></div>
+      </div>
+      <div class="scroll" style="margin-top:16px;max-height:600px"><table id="rTable"></table></div>
+    </div>
+  </section>
+</main>
+
+<!-- camera modal -->
+<div class="modal-bg" id="camModal"><div class="modal">
+  <h2 id="cmTitle">Add camera</h2>
+  <div class="cols">
+    <div><label>Camera ID *</label><input id="cmId" placeholder="gate_2_entry"></div>
+    <div><label>Gate name *</label><input id="cmGate" list="gateNames" placeholder="Gate 2"><datalist id="gateNames"></datalist></div>
+  </div>
+  <label>Direction</label>
+  <div class="radio" id="cmDir">
+    <label data-v="ENTRY"><input type="radio" name="dir">ENTRY<small>people coming in</small></label>
+    <label data-v="EXIT"><input type="radio" name="dir">EXIT<small>people going out</small></label>
+  </div>
+  <label>Attendance mode for this camera</label>
+  <div class="radio" id="cmMode">
+    <label data-v="unique"><input type="radio" name="mode">Unique<small>once per employee per day at this camera</small></label>
+    <label data-v="multiple"><input type="radio" name="mode">Multiple<small>every passage is an attendance record</small></label>
+  </div>
+  <label>What does this camera show? *</label>
+  <div class="radio" id="cmType">
+    <label data-v="video"><input type="radio" name="stype">&#127902; Test video<small>a video uploaded in Test Videos</small></label>
+    <label data-v="webcam"><input type="radio" name="stype">&#128247; Webcam<small>USB / built-in camera of the server PC</small></label>
+    <label data-v="rtsp"><input type="radio" name="stype">&#128225; Live stream<small>RTSP / HTTP IP camera</small></label>
+  </div>
+  <div id="srcVideo"><label>Video</label><select id="cmVid"></select>
+    <div class="hint" id="cmVidHint" style="margin-top:4px"></div></div>
+  <div id="srcWebcam"><label>Webcam</label><select id="cmCamIdx">
+    <option value="0">Webcam 0 (built-in / first USB camera)</option><option value="1">Webcam 1</option><option value="2">Webcam 2</option><option value="3">Webcam 3</option></select>
+    <div class="hint" style="margin-top:4px">This is the camera plugged into the computer running the app, not the camera of the person viewing this page.</div></div>
+  <div id="srcRtsp"><label>Stream URL</label><input id="cmSrc" placeholder="rtsp://user:pass@192.168.1.70:554/Streaming/Channels/101"></div>
+  <div class="cols3">
+    <div><label>Width</label><input id="cmW" type="number" value="1280"></div>
+    <div><label>Height</label><input id="cmH" type="number" value="720"></div>
+    <div><label>FPS</label><input id="cmF" type="number" value="30"></div>
+  </div>
+  <label>Run mode</label>
+  <div class="radio" id="cmRun">
+    <label data-v="setup"><input type="radio" name="run">Setup<small>preview, no attendance</small></label>
+    <label data-v="live"><input type="radio" name="run">Live<small>attendance on</small></label>
+    <label data-v="off"><input type="radio" name="run">Off<small>camera closed</small></label>
+  </div>
+  <label>Detection area (ROI) <span class="muted">- click on the image to add points; only faces inside are processed</span></label>
+  <div class="roi" id="roiBox"><img id="roiImg" alt=""><canvas id="roiCan"></canvas></div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn small" id="roiFull">Full frame</button>
+    <button class="btn small" id="roiClear">Clear &amp; draw</button>
+    <button class="btn small" id="roiRefresh">Refresh image</button>
+    <span class="hint" id="roiInfo"></span>
+  </div>
+  <div class="msg" id="cmMsg"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn danger" id="cmDel">Delete camera</button>
+    <div style="flex:1"></div>
+    <button class="btn" id="cmCancel">Cancel</button>
+    <button class="btn primary" id="cmSave">Save camera</button>
+  </div>
+</div></div>
+
+<!-- delete all data modal -->
+<div class="modal-bg" id="wipeModal"><div class="modal" style="max-width:520px">
+  <h2>Delete all data</h2>
+  <p class="hint">Permanently deletes the selected data from this server. It cannot be undone.</p>
+  <label style="display:flex;gap:8px;color:var(--text)"><input type="checkbox" class="wpart" value="employees" checked style="width:auto"> Employees and all registered face photos</label>
+  <label style="display:flex;gap:8px;color:var(--text)"><input type="checkbox" class="wpart" value="attendance" checked style="width:auto"> Attendance records, alerts, snapshots, Excel reports</label>
+  <label style="display:flex;gap:8px;color:var(--text)"><input type="checkbox" class="wpart" value="videos" checked style="width:auto"> Uploaded test videos (and their test cameras)</label>
+  <label>Type <b>DELETE</b> to confirm</label><input id="wConfirm" autocomplete="off">
+  <div class="msg" id="wMsg"></div>
+  <div class="row" style="margin-top:16px"><div style="flex:1"></div>
+    <button class="btn" id="wCancel">Cancel</button>
+    <button class="btn danger" id="wGo" style="background:var(--red);color:#fff">Delete permanently</button></div>
+</div></div>
+
+<!-- live checklist modal -->
+<div class="modal-bg" id="liveModal"><div class="modal" style="max-width:560px">
+  <h2>Start live attendance</h2>
+  <p class="hint">Attendance will be recorded on the selected cameras. You can stop and go back to setup at any time.</p>
+  <ul class="check" id="liveList" style="padding-left:18px"></ul>
+  <div class="msg" id="liveMsg"></div>
+  <div class="row" style="margin-top:16px"><div style="flex:1"></div>
+    <button class="btn" id="lvCancel">Cancel</button>
+    <button class="btn green" id="lvGo">&#9654; Start live</button></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let KEY = localStorage.getItem("apiKey") || "";
+const q = u => KEY ? u + (u.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY) : u;
+async function api(url, opt = {}) {
+  opt.headers = Object.assign({}, opt.headers || {}, KEY ? {"X-API-Key": KEY} : {});
+  const r = await fetch(url, opt);
+  if (r.status === 401) { KEY = prompt("API key required:") || ""; localStorage.setItem("apiKey", KEY); return api(url, opt); }
+  const ct = r.headers.get("content-type") || "";
+  const data = ct.includes("json") ? await r.json() : await r.blob();
+  if (!r.ok) throw new Error(data.message || `Server error ${r.status} - check the app window / logs`);
+  return data;
+}
+const jpost = (url, body, method = "POST") => api(url, {method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v == null ? "-" : Math.round(v * 100) + "%";
+const today = () => new Date().toLocaleDateString("en-CA");
+const RUN = {live: ["LIVE", "b-green"], setup: ["SETUP", "b-amber"], off: ["OFF", "b-grey"]};
+const MODE = {unique: ["UNIQUE", "b-blue"], multiple: ["MULTIPLE", "b-cyan"]};
+const badge = (map, v) => `<span class="badge ${map[v][1]}">${map[v][0]}</span>`;
+function show(el, text, kind) { el.textContent = text; el.className = "msg show " + kind; }
+function hide(el) { el.className = "msg"; }
+
+let CAMS = [], EMP_COUNT = 0, TAB = "live", TUNE = {};
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  TAB = b.dataset.tab;
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + TAB));
+  if (TAB === "employees") loadEmployees();
+  if (TAB === "reports") loadReport();
+  if (TAB === "register") enterRegister(); else leaveRegister();
+  if (TAB === "cameras") renderCameras();
+  if (TAB === "videos") loadVideos();
+  if (TAB === "tuning") loadTuning();
+  if (TAB === "live") { startSnaps(); refresh(); }
+});
+const camById = id => CAMS.find(c => c.cam_id === id);
+const fmtT = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const faceTxt = c => c.face_px && c.face_px.length ? `faces ${c.face_px.join(", ")} px` : "no face";
+function videoCtl(c) {
+  if (!c.is_video) return "";
+  return `<span class="vctl">${c.paused ? `<button class="btn small" data-vc="resume" data-cam="${esc(c.cam_id)}">&#9654; Play</button>`
+    : `<button class="btn small" data-vc="pause" data-cam="${esc(c.cam_id)}">&#9208; Pause</button>`}<button class="btn small" data-vc="restart" data-cam="${esc(c.cam_id)}">&#8634; Restart</button></span>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-vc]"); if (!b) return;
+  const cam = b.dataset.cam || SRC();
+  try { await jpost(`/api/cameras/${encodeURIComponent(cam)}/control`, {action: b.dataset.vc}); setTimeout(async () => { await refresh(); if (TAB === "videos") loadVideos(); }, 200); }
+  catch (err) { alert(err.message); }
+});
+
+// ---------- status / live ----------
+let camsSig = "";
+async function refresh() {
+  try {
+    const s = await api("/api/status");
+    CAMS = s.cameras; EMP_COUNT = s.employees;
+    $("#tPresent").textContent = s.stats.present; $("#tRecords").textContent = s.stats.records;
+    $("#tPass").textContent = s.stats.passages; $("#tAlerts").textContent = s.stats.alerts; $("#tEmp").textContent = s.employees;
+    const active = CAMS.filter(c => c.run_mode !== "off"), live = CAMS.filter(c => c.run_mode === "live");
+    const pill = $("#sysPill");
+    if (!live.length) { pill.textContent = "SETUP"; pill.className = "pill p-setup"; }
+    else if (live.length === active.length) { pill.textContent = "LIVE"; pill.className = "pill p-live"; }
+    else { pill.textContent = `LIVE ${live.length}/${active.length}`; pill.className = "pill p-mixed"; }
+    const bl = $("#bLive");
+    if (live.length) { bl.innerHTML = "&#9208; Stop Live (back to setup)"; bl.className = "btn amber"; bl.dataset.action = "stop"; }
+    else { bl.innerHTML = "&#9654; Start Live Attendance"; bl.className = "btn green"; bl.dataset.action = "start"; }
+    if (!live.length) show($("#setupBanner"), `Setup mode: attendance is paused. Register employees first (${s.employees} registered), then press "Start Live Attendance".`, "warn");
+    else hide($("#setupBanner"));
+
+    renderCamCtl();
+    const sig = CAMS.map(c => c.cam_id + c.run_mode).join("|") + $("#camShow").value;
+    if (sig !== camsSig) { camsSig = sig; buildCamCards(); buildSourceSelect(); buildReportFilters(); if (TAB === "cameras") renderCameras(); }
+    startSnaps();
+    CAMS.forEach(c => {
+      const m = document.getElementById("m-" + c.cam_id);
+      if (m) m.innerHTML = `<span><span class="dot" style="background:${c.connected ? "var(--green)" : "var(--red)"}"></span>${c.run_mode === "off" ? "Off" : c.connected ? "Online" : "Connecting..."}</span>
+        <span>Camera ${c.input_fps} fps</span><span>Processing ${c.process_fps} fps</span><span>${c.infer_ms} ms/frame</span><span>${faceTxt(c)}</span>
+        ${c.is_video ? `<span>${c.paused ? "&#9208; paused" : "&#9654;"} ${fmtT(c.position)} / ${fmtT(c.duration)}</span>` : ""}`;
+      const v = document.getElementById("vc-" + c.cam_id);
+      if (v) v.innerHTML = videoCtl(c);
+    });
+    const rc = camById(SRC());
+    $("#regVideo").style.display = TAB === "register" && rc && rc.is_video ? "flex" : "none";
+    if (TAB === "tuning") $("#tFaces").innerHTML = "Faces seen right now: " + (CAMS.filter(c => c.run_mode !== "off").map(c => `<b>${esc(c.cam_id)}</b> ${faceTxt(c)}`).join(" &middot; ") || "no active camera")
+      + ` &nbsp;|&nbsp; current minimum: <b>${TUNE.values ? TUNE.values["quality.min_face_px"] : "-"} px</b>. Grey boxes on the preview are smaller than the minimum.`;
+    updateLiveWarn();
+    if (TAB !== "live") return;
+    const ev = await api("/api/events?day=" + today());
+    $("#evBody").innerHTML = ev.slice(0, 60).map(e => `<tr><td>${esc(e.ts.slice(11))}</td><td><b>${esc(e.name)}</b> <span class="muted">${esc(e.emp_id)}</span></td>
+      <td>${esc(e.gate_name)}</td><td class="muted">${esc(e.camera_id)}</td><td><span class="badge ${e.direction === "EXIT" ? "b-amber" : "b-blue"}">${esc(e.direction)}</span></td>
+      <td>${pct(e.match_score)}</td><td>${pct(e.liveness)}</td>
+      <td>${e.counted ? `<span class="badge b-green">MARKED</span> <span class="muted">${esc((e.attendance_mode || "").toUpperCase())}</span>` : '<span class="muted">already marked</span>'}</td></tr>`).join("")
+      || `<tr><td colspan="8" class="empty">No passages yet today</td></tr>`;
+    // under every camera: the people it recognised today, newest first (green = last 10 s)
+    const now = Date.now();
+    CAMS.forEach(c => {
+      const box = document.getElementById("r-" + c.cam_id);
+      if (!box) return;
+      const mine = ev.filter(e => e.camera_id === c.cam_id).slice(0, 8);
+      box.innerHTML = mine.length ? mine.map(e => `<span class="rc${now - new Date(e.ts.replace(" ", "T")).getTime() < 10000 ? " new" : ""}" title="match ${pct(e.match_score)}">
+        <b>${esc(e.name)}</b> ${esc(e.ts.slice(11, 16))} ${e.counted ? "&#10004;" : '<span class="muted">repeat</span>'}</span>`).join("")
+        : '<span class="hint" style="margin:0">Recognised here today: nobody yet</span>';
+    });
+    const al = await api("/api/alerts?day=" + today());
+    $("#alBody").innerHTML = al.slice(0, 40).map(a => `<div class="alert-item">${a.snapshot ? `<img src="${q("/api/snapshot?path=" + encodeURIComponent(a.snapshot))}">` : ""}
+      <div><span class="badge ${a.kind === "SPOOF" ? "b-red" : "b-amber"}">${a.kind === "SPOOF" ? "FAKE FACE" : "UNREGISTERED"}</span>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(a.ts.slice(11))} &middot; ${esc(a.camera_id)} &middot; live ${pct(a.liveness)}</div></div></div>`).join("")
+      || `<div class="empty">No alerts today</div>`;
+  } catch (e) { console.warn(e); }
+}
+// one chip per camera: its state and the buttons to switch it live / setup / off
+function renderCamCtl() {
+  const btn = (c, run, cls, text) => `<button class="btn small ${cls}" data-ctl="${run}" data-cam="${esc(c.cam_id)}">${text}</button>`;
+  $("#camCtl").innerHTML = CAMS.map(c => `<div class="ctl${c.run_mode === "live" ? " on-live" : ""}">
+      <span class="dot" style="background:${c.run_mode === "off" ? "var(--muted)" : c.connected ? "var(--green)" : "var(--red)"}"></span>
+      <b>${esc(c.cam_id)}</b><span class="muted">${esc(c.gate_name)} &middot; ${c.direction}</span>${badge(RUN, c.run_mode)}
+      ${c.run_mode === "live" ? btn(c, "setup", "amber", "Stop live") : btn(c, "live", "green", "Go live")}
+      ${c.run_mode === "off" ? btn(c, "setup", "", "Turn on") : btn(c, "off", "", "Off")}</div>`).join("")
+    || '<span class="hint" style="margin:0">No cameras yet - add one in Cameras &amp; Gates or upload a test video</span>';
+}
+$("#camCtl").onclick = async e => {
+  const b = e.target.closest("[data-ctl]");
+  if (!b) return;
+  if (b.dataset.ctl === "live" && !EMP_COUNT) { alert("Register at least one employee first."); return; }
+  b.disabled = true;
+  try { await jpost("/api/cameras/" + encodeURIComponent(b.dataset.cam), {run_mode: b.dataset.ctl}, "PUT"); await refresh(); }
+  catch (err) { alert(err.message); b.disabled = false; }
+};
+$("#allLive").onclick = async () => {
+  if (!EMP_COUNT) { alert("Register at least one employee first."); return; }
+  try { const r = await jpost("/api/live", {action: "start", cameras: CAMS.map(c => c.cam_id)}); refresh(); } catch (e) { alert(e.message); }
+};
+$("#allStop").onclick = async () => { try { await jpost("/api/live", {action: "stop"}); refresh(); } catch (e) { alert(e.message); } };
+try { $("#camShow").value = localStorage.getItem("camShow") || "on"; } catch (e) {}
+$("#camShow").onchange = () => { try { localStorage.setItem("camShow", $("#camShow").value); } catch (e) {} refresh(); };
+function buildCamCards() {
+  const onlyLive = $("#camShow").value === "live";
+  $("#cams").innerHTML = CAMS.filter(c => onlyLive ? c.run_mode === "live" : c.run_mode !== "off").map(c => `<div class="card cam"><h3>${esc(c.gate_name)} &middot; ${esc(c.cam_id)}
+      <span class="badge ${c.direction === "EXIT" ? "b-amber" : "b-blue"}">${c.direction}</span>${badge(MODE, c.attendance_mode)}${badge(RUN, c.run_mode)}<span id="vc-${esc(c.cam_id)}" style="margin-left:auto"></span></h3>
+    <img data-snap="${esc(c.cam_id)}" alt=""><div class="meta" id="m-${esc(c.cam_id)}"></div>
+    <div class="recog" id="r-${esc(c.cam_id)}"><span class="hint" style="margin:0">Recognised here today: nobody yet</span></div></div>`).join("")
+    || (onlyLive && CAMS.some(c => c.run_mode !== "off") ? `<div class="card empty">No camera is live - press "Go live" on a camera above</div>` : `<div class="card"><h3>No camera is on - choose what to test</h3>
+      <div class="row">
+        <button class="btn primary big" data-qs="video">&#127902; Test video</button>
+        <button class="btn big" data-qs="webcam">&#128247; Webcam</button>
+        <button class="btn big" data-qs="rtsp">&#128225; Live RTSP stream</button>
+      </div>
+      ${CAMS.length ? `<p class="hint" style="margin-top:14px">Or switch on an existing camera:</p>` + CAMS.map(c => `<div class="row" style="margin:6px 0">
+        <b>${esc(c.cam_id)}</b> <span class="muted">${esc(c.source)}</span> <button class="btn small green" data-on="${esc(c.cam_id)}">Turn on</button></div>`).join("") : ""}</div>`);
+  document.querySelectorAll("[data-qs]").forEach(b => b.onclick = () => {
+    if (b.dataset.qs === "video") document.querySelector('nav button[data-tab="videos"]').click();
+    else openCam(null, b.dataset.qs);
+  });
+  document.querySelectorAll("[data-on]").forEach(b => b.onclick = async () => {
+    try { await jpost("/api/cameras/" + encodeURIComponent(b.dataset.on), {run_mode: "setup"}, "PUT"); refresh(); } catch (e) { alert(e.message); }
+  });
+}
+// Live grid: each camera shows its newest frame, fetched one after the other (no MJPEG connection per camera,
+// so many cameras never block the browser and a slow network never builds up delay)
+function startSnaps() {
+  if (TAB !== "live" || document.hidden) return;
+  document.querySelectorAll("img[data-snap]").forEach(img => {
+    if (img._loop) return;
+    img._loop = true;
+    (async () => {
+      let n = "";
+      while (img.isConnected && TAB === "live" && !document.hidden) {
+        const t0 = performance.now();
+        let wait = 100;
+        try {
+          const r = await fetch(q(`/api/snap/${encodeURIComponent(img.dataset.snap)}?n=${n}`), {cache: "no-store"});
+          if (r.status === 200) {
+            n = r.headers.get("X-Frame") || "";
+            const url = URL.createObjectURL(await r.blob()), old = img.src;
+            img.src = url;
+            if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+          } else if (r.status !== 204) wait = 1000;
+        } catch (e) { wait = 1000; }
+        await new Promise(res => setTimeout(res, Math.max(10, wait - (performance.now() - t0))));
+      }
+      img._loop = false;
+    })();
+  });
+}
+document.addEventListener("visibilitychange", startSnaps);
+function applyCols() {
+  const v = $("#camCols").value;
+  $("#cams").style.gridTemplateColumns = v ? `repeat(${v}, minmax(0, 1fr))` : "";
+  try { localStorage.setItem("camCols", v); } catch (e) {}
+}
+try { $("#camCols").value = localStorage.getItem("camCols") || ""; } catch (e) {}
+$("#camCols").onchange = applyCols; applyCols();
+setInterval(refresh, 2500); refresh();
+
+$("#bLive").onclick = async () => {
+  if ($("#bLive").dataset.action === "stop") {
+    if (!confirm("Stop live attendance on all cameras and go back to setup mode?")) return;
+    const r = await jpost("/api/live", {action: "stop"}); refresh(); return;
+  }
+  const c = await api("/api/live/checklist");
+  const items = [`<li>${c.employees ? "&#9989;" : "&#10060;"} Registered employees: <b>${c.employees}</b></li>`]
+    .concat(c.cameras.map(x => `<li><label style="display:inline;color:var(--text)"><input type="checkbox" class="lvCam" value="${esc(x.cam_id)}" ${x.run_mode !== "off" ? "checked" : ""} style="width:auto;margin-right:6px">
+      ${esc(x.gate_name)} &middot; <b>${esc(x.cam_id)}</b></label> ${badge(MODE, x.attendance_mode)} <span class="badge ${x.direction === "EXIT" ? "b-amber" : "b-blue"}">${x.direction}</span>
+      ${x.run_mode === "off" ? '<span class="muted">(off - will be switched on)</span>' : x.connected ? '<span style="color:var(--green)">online</span>' : '<span style="color:var(--red)">not connected</span>'}</li>`));
+  $("#liveList").innerHTML = items.join("");
+  hide($("#liveMsg"));
+  if (!c.employees) show($("#liveMsg"), "Register at least one employee first.", "err");
+  $("#lvGo").disabled = !c.employees;
+  $("#liveModal").classList.add("show");
+};
+$("#lvCancel").onclick = () => $("#liveModal").classList.remove("show");
+$("#lvGo").onclick = async () => {
+  const ids = [...document.querySelectorAll(".lvCam:checked")].map(x => x.value);
+  if (!ids.length) { show($("#liveMsg"), "Select at least one camera.", "err"); return; }
+  try { const r = await jpost("/api/live", {action: "start", cameras: ids}); $("#liveModal").classList.remove("show"); refresh(); }
+  catch (e) { show($("#liveMsg"), e.message, "err"); }
+};
+
+// ---------- cameras ----------
+function renderCameras() {
+  const gates = {};
+  CAMS.forEach(c => (gates[c.gate_name] = gates[c.gate_name] || []).push(c));
+  $("#gateNames").innerHTML = Object.keys(gates).map(g => `<option value="${esc(g)}">`).join("");
+  $("#gateList").innerHTML = Object.entries(gates).map(([g, cams]) => `<div class="card gate"><h3>&#128682; ${esc(g)}</h3>
+    ${cams.map(c => `<div class="camrow">
+      <div><b>${esc(c.cam_id)}</b><div class="muted" style="font-size:12px">${esc(c.source)} &middot; ${c.width}x${c.height}</div></div>
+      <div><span class="badge ${c.direction === "EXIT" ? "b-amber" : "b-blue"}">${c.direction}</span></div>
+      <div>${badge(MODE, c.attendance_mode)}</div>
+      <div>${badge(RUN, c.run_mode)}</div>
+      <div class="muted" style="font-size:12px"><span class="dot" style="background:${c.connected ? "var(--green)" : c.run_mode === "off" ? "var(--muted)" : "var(--red)"}"></span>${c.run_mode === "off" ? "closed" : c.connected ? c.process_fps + " fps" : "not connected"}</div>
+      <div class="row">
+        ${c.run_mode === "live" ? `<button class="btn small amber" data-run="setup" data-cam="${esc(c.cam_id)}">Stop live</button>` : c.run_mode === "setup" ? `<button class="btn small green" data-run="live" data-cam="${esc(c.cam_id)}">Go live</button>` : ""}
+        ${c.run_mode === "off" ? `<button class="btn small" data-run="setup" data-cam="${esc(c.cam_id)}">Turn on</button>` : `<button class="btn small" data-run="off" data-cam="${esc(c.cam_id)}">Off</button>`}
+        <button class="btn small" data-edit="${esc(c.cam_id)}">Edit</button>
+      </div></div>`).join("")}</div>`).join("") || `<div class="card empty">No cameras yet - press "+ Add camera"</div>`;
+  document.querySelectorAll("[data-run]").forEach(b => b.onclick = async () => {
+    if (b.dataset.run === "live" && !EMP_COUNT) { alert("Register at least one employee first."); return; }
+    try { await jpost("/api/cameras/" + encodeURIComponent(b.dataset.cam), {run_mode: b.dataset.run}, "PUT"); refresh(); }
+    catch (e) { alert(e.message); }
+  });
+  document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openCam(CAMS.find(c => c.cam_id === b.dataset.edit)));
+}
+function radio(id, value) {
+  document.querySelectorAll(`#${id} label`).forEach(l => { l.classList.toggle("on", l.dataset.v === value); l.onclick = () => radio(id, l.dataset.v); });
+  document.getElementById(id).dataset.value = value;
+  if (id === "regType") { SRC_PICKED = true; buildSourceSelect(); if (TAB === "register") startPreview(); }
+  if (id === "cmType") ["video", "webcam", "rtsp"].forEach(t => $("#src" + t[0].toUpperCase() + t.slice(1)).style.display = t === value ? "" : "none");
+}
+const srcType = s => /^\d+$/.test(s) ? "webcam" : s.includes("://") ? "rtsp" : "video";
+async function loadVideoOptions(current) {
+  const vids = (await api("/api/videos")).videos;
+  const opts = vids.map(v => [v.path, v.name]);
+  if (current && srcType(current) === "video" && !opts.some(o => o[0] === current)) opts.unshift([current, current]);
+  $("#cmVid").innerHTML = opts.map(([p, n]) => `<option value="${esc(p)}">${esc(n)}</option>`).join("") || '<option value="">(no video uploaded yet)</option>';
+  if (current) $("#cmVid").value = current;
+  $("#cmVidHint").innerHTML = opts.length ? "" : 'Upload one first in the <b>Test Videos</b> tab (it creates the camera for you).';
+}
+let ROI = [], EDIT = null;
+function openCam(c, type) {
+  EDIT = c ? c.cam_id : null;
+  $("#cmTitle").textContent = c ? "Edit camera " + c.cam_id : "Add camera";
+  let n = CAMS.length + 1; while (camById("test_cam_" + n)) n++;
+  $("#cmId").value = c ? c.cam_id : "test_cam_" + n; $("#cmId").disabled = !!c;
+  $("#cmGate").value = c ? c.gate_name : "Test Gate";
+  const t = c ? srcType(c.source) : type || "video";
+  radio("cmType", t);
+  $("#cmSrc").value = c && t === "rtsp" && !c.source.includes("***") ? c.source : "";
+  $("#cmSrc").placeholder = c && c.source.includes("***") ? "(unchanged: " + c.source + ")" : "rtsp://user:pass@192.168.1.70:554/Streaming/Channels/101";
+  $("#cmCamIdx").value = c && t === "webcam" ? c.source : "0";
+  loadVideoOptions(c && t === "video" ? c.source : "");
+  $("#cmW").value = c ? c.width : 1280; $("#cmH").value = c ? c.height : 720; $("#cmF").value = c ? c.fps : 30;
+  radio("cmDir", c ? c.direction : "ENTRY"); radio("cmMode", c ? c.attendance_mode : "unique"); radio("cmRun", c ? c.run_mode : "setup");
+  ROI = c && c.roi ? c.roi.map(p => [...p]) : [[0.03,0.03],[0.97,0.03],[0.97,0.97],[0.03,0.97]];
+  $("#cmDel").style.display = c ? "" : "none";
+  hide($("#cmMsg"));
+  loadRoiImage();
+  $("#camModal").classList.add("show");
+}
+function loadRoiImage() {
+  const img = $("#roiImg");
+  img.onerror = () => { img.removeAttribute("src"); $("#roiInfo").textContent = EDIT ? "No image (camera off or connecting) - you can still draw" : "Save the camera first to see its image"; drawRoi(); };
+  img.onload = () => { $("#roiInfo").textContent = ""; drawRoi(); };
+  if (EDIT) img.src = q(`/api/cameras/${encodeURIComponent(EDIT)}/frame?t=${Date.now()}`); else img.onerror();
+}
+function drawRoi() {
+  const can = $("#roiCan"), box = $("#roiBox"); can.width = box.clientWidth; can.height = box.clientHeight;
+  const g = can.getContext("2d"); g.clearRect(0, 0, can.width, can.height);
+  if (!ROI.length) return;
+  g.strokeStyle = "#22c55e"; g.fillStyle = "rgba(34,197,94,.15)"; g.lineWidth = 2; g.beginPath();
+  ROI.forEach(([x, y], i) => i ? g.lineTo(x * can.width, y * can.height) : g.moveTo(x * can.width, y * can.height));
+  if (ROI.length > 2) { g.closePath(); g.fill(); } g.stroke();
+  g.fillStyle = "#22c55e"; ROI.forEach(([x, y]) => { g.beginPath(); g.arc(x * can.width, y * can.height, 4, 0, 7); g.fill(); });
+}
+$("#roiBox").onclick = e => { const r = $("#roiBox").getBoundingClientRect(); ROI.push([+((e.clientX - r.left) / r.width).toFixed(4), +((e.clientY - r.top) / r.height).toFixed(4)]); drawRoi(); };
+$("#roiFull").onclick = () => { ROI = [[0.03,0.03],[0.97,0.03],[0.97,0.97],[0.03,0.97]]; drawRoi(); };
+$("#roiClear").onclick = () => { ROI = []; drawRoi(); };
+$("#roiRefresh").onclick = loadRoiImage;
+$("#bAddCam").onclick = () => openCam(null);
+$("#cmCancel").onclick = () => $("#camModal").classList.remove("show");
+$("#cmSave").onclick = async () => {
+  if (ROI.length < 3) { show($("#cmMsg"), "Draw at least 3 ROI points (or press Full frame).", "err"); return; }
+  const body = {cam_id: $("#cmId").value.trim(), gate_name: $("#cmGate").value.trim(), direction: $("#cmDir").dataset.value,
+    attendance_mode: $("#cmMode").dataset.value, run_mode: $("#cmRun").dataset.value,
+    source: {video: $("#cmVid").value, webcam: $("#cmCamIdx").value, rtsp: $("#cmSrc").value.trim()}[$("#cmType").dataset.value],
+    width: +$("#cmW").value, height: +$("#cmH").value, fps: +$("#cmF").value, roi: ROI};
+  if (body.run_mode === "live" && !EMP_COUNT) { show($("#cmMsg"), "Register at least one employee before going live.", "err"); return; }
+  if (!body.source && !(EDIT && $("#cmType").dataset.value === "rtsp")) { show($("#cmMsg"), $("#cmType").dataset.value === "video" ? "Upload a video first in the Test Videos tab." : "Enter the stream URL.", "err"); return; }
+  try {
+    const r = EDIT ? await jpost("/api/cameras/" + encodeURIComponent(EDIT), body, "PUT") : await jpost("/api/cameras", body);
+    $("#camModal").classList.remove("show"); camsSig = ""; refresh();
+  } catch (e) { show($("#cmMsg"), e.message, "err"); }
+};
+$("#cmDel").onclick = async () => {
+  if (!confirm("Delete camera " + EDIT + "? Its past attendance records stay in the database.")) return;
+  await api("/api/cameras/" + encodeURIComponent(EDIT), {method: "DELETE"});
+  $("#camModal").classList.remove("show"); camsSig = ""; refresh();
+};
+
+// ---------- registration ----------
+let SID = null, checkTimer = null, stream = null, busy = false, LAST = null;
+// photo source: "browser" = webcam of the computer using the dashboard, otherwise a server camera / test video
+const SRC = () => $("#regType").dataset.value === "webcam" ? "browser" : $("#fSrc").value;
+function buildSourceSelect() {
+  const cur = $("#fSrc").value;
+  $("#fSrc").innerHTML = CAMS.filter(c => c.run_mode !== "off").map(c => `<option value="${esc(c.cam_id)}">${c.is_video ? "&#127902; Video" : "&#128249; Camera"}: ${esc(c.cam_id)} (${RUN[c.run_mode][0]})</option>`).join("");
+  // keep the user's choice; otherwise prefer a test video, then any server camera
+  const auto = CAMS.filter(c => c.run_mode !== "off").sort((a, b) => b.is_video - a.is_video)[0];
+  if (SRC_PICKED && [...$("#fSrc").options].some(o => o.value === cur)) $("#fSrc").value = cur;
+  else if (auto) $("#fSrc").value = auto.cam_id;
+  $("#regCamPick").style.display = $("#regType").dataset.value === "camera" && $("#fSrc").options.length ? "" : "none";
+  if (TAB === "register" && $("#regType").dataset.value === "camera" && $("#fSrc").value !== cur) startPreview();
+}
+let SRC_PICKED = false;
+function updateLiveWarn() {
+  const c = CAMS.find(x => x.cam_id === SRC());
+  if (c && c.run_mode === "live") show($("#liveWarn"), "This camera is LIVE - attendance can be recorded while you register. Stop live first for a clean registration.", "warn");
+  else hide($("#liveWarn"));
+}
+async function newSession() {
+  if (SID) api("/api/enroll/" + SID, {method: "DELETE"}).catch(() => {});
+  const r = await api("/api/enroll/start", {method: "POST"});
+  SID = r.session; renderSamples(r); hide($("#eMsg")); $("#bForce").style.display = "none"; $("#upResults").innerHTML = "";
+}
+function renderSamples(r) {
+  if (!r || !Array.isArray(r.samples)) return;  // not a registration answer (error): keep the current view
+  LAST = r;
+  $("#prog").style.width = Math.min(100, 100 * r.count / r.min) + "%";
+  $("#prog").style.background = r.count >= r.min ? "" : "var(--amber, #f59e0b)";
+  // 12 - 100 photos per employee
+  $("#countTxt").innerHTML = `<b>${r.count} / ${r.min}</b> photos` + (r.count >= r.min ? " &#10004; ready to save"
+    : ` &middot; <b>${r.min - r.count} more needed</b>`) + ` &middot; max ${r.max}`;
+  $("#bSave").disabled = r.count < r.min;
+  $("#suggest").textContent = r.count >= r.max ? "Maximum reached" : "Next: " + r.suggestion;
+  $("#thumbs").innerHTML = r.samples.map(s => `<div class="thumb"><img src="${s.thumb}"><button class="x" data-rm="${s.id}" title="Remove">&times;</button>
+    <small>${s.source === "upload" ? "upload" : s.pose.replace("_", " ")}</small></div>`).join("") || '<span class="hint">No photos yet - press Capture or upload photos</span>';
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => renderSamples(await api(`/api/enroll/${SID}/samples/${b.dataset.rm}`, {method: "DELETE"})));
+}
+function setQuality(ok, text) { $("#quality").className = "quality " + (ok ? "ok" : "bad"); $("#qText").textContent = text; }
+function drawBox(box, ok) {
+  const can = $("#sCan"), st = $("#stage"); can.width = st.clientWidth; can.height = st.clientHeight;
+  const ctx = can.getContext("2d"); ctx.clearRect(0, 0, can.width, can.height);
+  if (!box) return;
+  const media = SRC() === "browser" ? $("#sVid") : $("#sImg");
+  const vw = media.videoWidth || media.naturalWidth, vh = media.videoHeight || media.naturalHeight;
+  if (!vw) return;
+  const sc = Math.min(can.width / vw, can.height / vh), ox = (can.width - vw * sc) / 2, oy = (can.height - vh * sc) / 2;
+  let [x1, y1, x2, y2] = box;
+  if (SRC() === "browser") [x1, x2] = [1 - x2, 1 - x1];
+  ctx.strokeStyle = ok ? "#22c55e" : "#f59e0b"; ctx.lineWidth = 3;
+  ctx.strokeRect(ox + x1 * vw * sc, oy + y1 * vh * sc, (x2 - x1) * vw * sc, (y2 - y1) * vh * sc);
+}
+const grab = document.createElement("canvas");
+const PADQ = () => "pad=" + encodeURIComponent($("#fPad").value);
+try { $("#fPad").value = localStorage.getItem("regPad") || "auto"; if (!$("#fPad").value) $("#fPad").value = "auto"; } catch (e) {}
+$("#fPad").onchange = () => { try { localStorage.setItem("regPad", $("#fPad").value); } catch (e) {} };
+async function frameRequest(path, point) {
+  const src = SRC();
+  const pt = (point ? `x=${point[0].toFixed(4)}&y=${point[1].toFixed(4)}&` : "") + (path === "capture" ? PADQ() : "");
+  if (src === "browser") {
+    const v = $("#sVid"); if (!v.videoWidth) throw new Error("Webcam starting...");
+    grab.width = v.videoWidth; grab.height = v.videoHeight; grab.getContext("2d").drawImage(v, 0, 0);
+    // quality checks several times a second: lighter JPEG (smooth over the internet); the capture itself is sharp
+    const blob = await new Promise(r => grab.toBlob(r, "image/jpeg", path === "check" ? 0.7 : 0.93));
+    return api(`/api/enroll/${SID}/${path}${pt ? "?" + pt : ""}`, {method: "POST", body: blob});
+  }
+  return api(`/api/enroll/${SID}/${path}?camera=${encodeURIComponent(src)}${pt ? "&" + pt : ""}`, {method: "POST"});
+}
+// click on a face in the preview = capture exactly that person (videos / several people in view)
+$("#stage").onclick = e => {
+  const browser = SRC() === "browser", media = browser ? $("#sVid") : $("#sImg");
+  const vw = media.videoWidth || media.naturalWidth, vh = media.videoHeight || media.naturalHeight;
+  if (!vw || !SID) return;
+  const r = $("#stage").getBoundingClientRect(), sc = Math.min(r.width / vw, r.height / vh);
+  let x = (e.clientX - r.left - (r.width - vw * sc) / 2) / (vw * sc), y = (e.clientY - r.top - (r.height - vh * sc) / 2) / (vh * sc);
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  if (browser) x = 1 - x;
+  capture([x, y]);
+};
+async function startPreview() {
+  clearInterval(checkTimer);
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $("#sVid").style.display = "none"; $("#sImg").style.display = "none"; $("#sImg").removeAttribute("src");
+  const src = SRC(); updateLiveWarn();
+  $("#sEmpty").innerHTML = "Choose a camera to start the preview";
+  if (!src) {
+    $("#sEmpty").innerHTML = '<div style="text-align:center;padding:0 20px">No test video or camera is switched on.<br>Upload a video in <b>Test Videos</b> (it opens here automatically), choose <b>My webcam</b>, or just upload photos on the left.</div>';
+    $("#sEmpty").style.display = "flex"; setQuality(false, "No camera selected"); return;
+  }
+  $("#sEmpty").style.display = "none";
+  if (src === "browser") {
+    try { stream = await navigator.mediaDevices.getUserMedia({video: {width: 1280, height: 720}}); }
+    catch (e) { setQuality(false, "Webcam blocked or not found - allow camera access in the browser (lock icon in the address bar), or use a test video / photo upload"); return; }
+    $("#sVid").srcObject = stream; $("#sVid").style.display = "block";
+  } else { $("#sImg").src = q("/api/stream/" + encodeURIComponent(src)); $("#sImg").style.display = "block"; }
+  checkTimer = setInterval(async () => {
+    if (busy || !SID) return; busy = true;
+    try { const r = await frameRequest("check"); drawBox(r.box, r.ok); setQuality(r.ok, r.message); }
+    catch (e) { setQuality(false, e.message); if (e.message.includes("expired")) await newSession(); }
+    finally { busy = false; }
+  }, 350);
+}
+function leaveRegister() { clearInterval(checkTimer); if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } $("#sImg").removeAttribute("src"); }
+async function enterRegister() { if (!SID) await newSession(); startPreview(); }
+async function capture(point) {
+  if (!SID) return;
+  $("#bCapture").disabled = true;
+  try {
+    const r = await frameRequest("capture", Array.isArray(point) ? point : null);
+    renderSamples(r); drawBox(r.box, r.ok);
+    if (r.ok) { setQuality(true, "Photo captured ✔"); $("#stage").style.outline = "4px solid #22c55e"; setTimeout(() => $("#stage").style.outline = "", 200); }
+    else setQuality(false, "Not captured: " + r.message);
+  } catch (e) { setQuality(false, e.message); }
+  finally { $("#bCapture").disabled = false; }
+}
+$("#bCapture").onclick = () => capture();
+document.addEventListener("keydown", e => {
+  if (TAB === "register" && e.code === "Space" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) { e.preventDefault(); capture(); }
+});
+$("#fSrc").onchange = () => { SRC_PICKED = true; startPreview(); };
+// default: a test video / server camera; the webcam opens only when the user chooses it
+document.querySelectorAll("#regType label").forEach(l => l.onclick = () => radio("regType", l.dataset.v));
+$("#regType").dataset.value = "camera"; $("#regType label[data-v=camera]").classList.add("on");
+$("#bNew").onclick = async () => { ["#fId", "#fName", "#fDept"].forEach(s => $(s).value = ""); await newSession(); };
+$("#bUpload").onclick = async () => {
+  const files = $("#fFiles").files;
+  if (!files.length) { show($("#eMsg"), "Choose one or more photos first", "err"); return; }
+  const fd = new FormData(); [...files].forEach(f => fd.append("files", f));
+  $("#bUpload").disabled = true;
+  try {
+    const r = await api(`/api/enroll/${SID}/upload?${PADQ()}`, {method: "POST", body: fd});
+    renderSamples(r);
+    const ok = r.results.filter(x => x.ok).length;
+    $("#upResults").innerHTML = `<p class="hint">${ok} accepted, ${r.results.length - ok} rejected</p>` + r.results.map(x =>
+      `<div style="font-size:12px;margin:3px 0">${x.ok ? '<span style="color:var(--green)">&#10004;</span>' : '<span style="color:var(--red)">&#10008;</span>'} ${esc(x.file)} <span class="muted">- ${esc(x.message)}</span></div>`).join("");
+    $("#fFiles").value = "";
+  } catch (e) { show($("#eMsg"), e.message, "err"); }
+  finally { $("#bUpload").disabled = false; }
+};
+async function save(force) {
+  hide($("#eMsg")); $("#bForce").style.display = "none";
+  if (!$("#fId").value.trim()) { show($("#eMsg"), "Employee ID is required", "err"); $("#fId").focus(); return; }
+  try {
+    const r = await jpost(`/api/enroll/${SID}/commit`, {emp_id: $("#fId").value, name: $("#fName").value, department: $("#fDept").value, force});
+    show($("#eMsg"), r.message, r.ok ? "ok" : "err");
+    if (r.ok) { ["#fId", "#fName", "#fDept"].forEach(s => $(s).value = ""); SID = null; await newSession(); show($("#eMsg"), r.message + " - ready for the next employee", "ok"); refresh(); }
+    else if (r.message.startsWith("DUPLICATE")) $("#bForce").style.display = "inline-block";
+  } catch (e) { show($("#eMsg"), e.message, "err"); }
+}
+$("#bSave").onclick = () => save(false);
+// bulk: main folder -> one sub-folder per employee (folder name = employee ID), one request per employee
+const ID_OK = /^[A-Za-z0-9_\-]{1,32}$/, IMG_OK = /\.(jpe?g|png|bmp|webp|jfif)$/i;
+$("#bBulk").onclick = async () => {
+  const groups = {};
+  for (const f of $("#fBulk").files) {
+    const parts = (f.webkitRelativePath || f.name).split("/");
+    if (!IMG_OK.test(f.name)) continue;
+    // main/EMP001/x.jpg -> EMP001; an employee folder chosen directly (EMP001/x.jpg) -> EMP001
+    const id = parts.length >= 3 ? parts[1] : parts[0];
+    (groups[id] = groups[id] || []).push(f);
+  }
+  const ids = Object.keys(groups).sort();
+  if (!ids.length) { $("#bulkResults").innerHTML = '<p class="msg err" style="display:block">No photos found - choose the main folder that contains one folder per employee.</p>'; return; }
+  $("#bBulk").disabled = true;
+  let ok = 0;
+  const line = (id, good, text) => `<div style="font-size:12px;margin:3px 0">${!good ? '<span style="color:var(--red)">&#10008;</span>' : '<span style="color:var(--green)">&#10004;</span>'} <b>${esc(id)}</b> <span class="muted">- ${esc(text)}</span></div>`;
+  const rows = [];
+  for (const [i, id] of ids.entries()) {
+    $("#bulkResults").innerHTML = `<p class="hint">Registering ${i + 1} / ${ids.length}: <b>${esc(id)}</b> (${groups[id].length} photos)...</p>` + rows.join("");
+    if (!ID_OK.test(id)) { rows.push(line(id, false, "folder name is not a valid employee ID (letters, digits, - and _ only)")); continue; }
+    const fd = new FormData(); groups[id].forEach(f => fd.append("files", f));
+    try {
+      const r = await api(`/api/enroll/bulk?emp_id=${encodeURIComponent(id)}&${PADQ()}`, {method: "POST", body: fd});
+      if (r.ok === undefined) throw new Error("server did not answer - try fewer photos per folder");
+      ok += r.ok; rows.push(line(id, r.ok, r.message));
+    } catch (e) { rows.push(line(id, false, e.message)); }
+  }
+  $("#bulkResults").innerHTML = `<p class="hint"><b>${ok} of ${ids.length}</b> employees registered</p>` + rows.join("");
+  $("#bBulk").disabled = false; $("#fBulk").value = ""; refresh();
+};
+$("#bForce").onclick = () => save(true);
+
+// ---------- employees ----------
+let EMPS = [];
+async function loadEmployees() { EMPS = await api("/api/employees"); renderEmployees(); }
+function renderEmployees() {
+  const f = $("#eSearch").value.toLowerCase();
+  const list = EMPS.filter(e => !f || (e.emp_id + e.name + e.department).toLowerCase().includes(f));
+  $("#empCount").textContent = `${EMPS.length} registered`;
+  $("#empGrid").innerHTML = list.map(e => `<div class="card emp"><img src="${q("/api/employees/" + encodeURIComponent(e.emp_id) + "/face")}" onerror="this.style.visibility='hidden'">
+    <div style="flex:1;min-width:0"><div class="n">${esc(e.name)}</div><div class="s">${esc(e.emp_id)} &middot; ${esc(e.department || "-")}</div>
+    <div class="s">${e.samples} photos</div></div><button class="btn danger small" data-del="${esc(e.emp_id)}" title="Delete">&#10005;</button></div>`).join("")
+    || `<div class="empty">No employees registered yet</div>`;
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Delete employee " + b.dataset.del + "? Their face data will be removed.")) return;
+    await api("/api/employees/" + encodeURIComponent(b.dataset.del), {method: "DELETE"}); loadEmployees(); refresh();
+  });
+}
+$("#eSearch").oninput = renderEmployees;
+
+// ---------- reports ----------
+$("#rDay").value = today();
+function buildReportFilters() {
+  const g = $("#rGate").value, c = $("#rCam").value, gates = {};
+  CAMS.forEach(x => gates[x.gate_id] = x.gate_name);
+  $("#rGate").innerHTML = `<option value="">All gates</option>` + Object.entries(gates).map(([id, n]) => `<option value="${esc(id)}">${esc(n)}</option>`).join("");
+  $("#rCam").innerHTML = `<option value="">All cameras</option>` + CAMS.map(x => `<option value="${esc(x.cam_id)}">${esc(x.cam_id)} (${x.direction}, ${x.attendance_mode})</option>`).join("");
+  $("#rGate").value = g; $("#rCam").value = c;
+}
+const rq = () => `day=${$("#rDay").value}&gate=${encodeURIComponent($("#rGate").value)}&camera=${encodeURIComponent($("#rCam").value)}`;
+async function loadReport() {
+  const v = $("#rView").value;
+  if (v === "summary") {
+    const rows = await api("/api/summary?" + rq());
+    $("#rTable").innerHTML = `<thead><tr><th>#</th><th>Employee</th><th>Department</th><th>First seen</th><th>First gate</th><th>Last seen</th><th>Last gate</th><th>Passages</th><th>Attendance records</th></tr></thead><tbody>`
+      + (rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b> <span class="muted">${esc(r.emp_id)}</span></td><td>${esc(r.department)}</td><td>${esc(r.first_seen.slice(11))}</td><td>${esc(r.first_gate)}</td><td>${esc(r.last_seen.slice(11))}</td><td>${esc(r.last_gate)}</td><td>${r.passages}</td><td>${r.records}</td></tr>`).join("")
+      || `<tr><td colspan="9" class="empty">No data</td></tr>`) + "</tbody>";
+  } else {
+    const rows = (await api("/api/events?" + rq() + (v === "records" ? "&counted=1" : ""))).reverse();
+    $("#rTable").innerHTML = `<thead><tr><th>#</th><th>Time</th><th>Employee</th><th>Gate</th><th>Camera</th><th>Direction</th><th>Camera mode</th><th>Match</th><th>Liveness</th>${v === "all" ? "<th>Counted</th>" : ""}</tr></thead><tbody>`
+      + (rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.ts.slice(11))}</td><td><b>${esc(r.name)}</b> <span class="muted">${esc(r.emp_id)}</span></td><td>${esc(r.gate_name)}</td><td>${esc(r.camera_id)}</td><td>${esc(r.direction)}</td><td>${esc((r.attendance_mode || "").toUpperCase())}</td><td>${pct(r.match_score)}</td><td>${pct(r.liveness)}</td>${v === "all" ? `<td>${r.counted ? '<span class="badge b-green">YES</span>' : '<span class="muted">repeat</span>'}</td>` : ""}</tr>`).join("")
+      || `<tr><td colspan="10" class="empty">No data</td></tr>`) + "</tbody>";
+  }
+}
+["#rDay", "#rGate", "#rCam", "#rView"].forEach(s => $(s).onchange = loadReport);
+$("#bDl").onclick = async () => {
+  const blob = await api("/api/report?" + rq());
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `attendance_${$("#rDay").value}${$("#rGate").value ? "_" + $("#rGate").value : ""}${$("#rCam").value ? "_" + $("#rCam").value : ""}.xlsx`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+// ---------- test videos ----------
+async function loadVideos() {
+  const r = await api("/api/videos");
+  $("#vMax").textContent = `max ${r.max_mb} MB`;
+  $("#vBody").innerHTML = r.videos.map(v => {
+    const c = v.cameras.map(camById).filter(Boolean)[0];
+    return `<tr><td><b>${esc(v.name)}</b></td><td>${v.size_mb} MB</td>
+      <td>${c ? `${esc(c.cam_id)} ${badge(RUN, c.run_mode)}` : '<span class="muted">none</span>'}</td>
+      <td>${c ? videoCtl(c) : ""}</td>
+      <td class="row">${c ? `<button class="btn small" data-roi="${esc(c.cam_id)}">Draw ROI / edit camera</button>` : `<button class="btn small" data-mkcam="${esc(v.path)}" data-name="${esc(v.name)}">Create test camera</button>`}
+      <button class="btn small danger" data-vdel="${esc(v.name)}">Delete</button></td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="empty">No videos uploaded</td></tr>`;
+  document.querySelectorAll("[data-roi]").forEach(b => b.onclick = () => openCam(camById(b.dataset.roi)));
+  document.querySelectorAll("[data-vdel]").forEach(b => b.onclick = async () => {
+    if (!confirm(`Delete video ${b.dataset.vdel} and its test camera?`)) return;
+    try { const r = await api("/api/videos/" + encodeURIComponent(b.dataset.vdel), {method: "DELETE"}); show($("#vMsg"), r.message, "ok"); }
+    catch (e) { show($("#vMsg"), e.message, "err"); }
+    camsSig = ""; await refresh(); loadVideos();
+  });
+  document.querySelectorAll("[data-mkcam]").forEach(b => b.onclick = async () => {
+    const id = "video_" + b.dataset.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").slice(0, 30);
+    try { await jpost("/api/cameras", {cam_id: id, gate_name: "Test Gate", direction: "ENTRY", attendance_mode: "unique", source: b.dataset.mkcam, roi: [[0,0],[1,0],[1,1],[0,1]], run_mode: "setup"}); }
+    catch (e) { show($("#vMsg"), e.message, "err"); }
+    camsSig = ""; await refresh(); loadVideos();
+  });
+}
+$("#bVUp").onclick = async () => {
+  const f = $("#vFile").files[0];
+  if (!f) { show($("#vMsg"), "Choose a video file first", "err"); return; }
+  hide($("#vMsg")); $("#bVUp").disabled = true;
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
+  const CH = 16 * 1024 * 1024, t0 = Date.now();  // 16 MB chunks: works through tunnels with request size limits
+  try {
+    let r;
+    for (let off = 0; off < f.size || off === 0; off += CH) {
+      const last = off + CH >= f.size;
+      const url = `/api/videos/upload?name=${encodeURIComponent(f.name)}&id=${id}&offset=${off}${last ? "&done=1&camera=" + ($("#vCam").checked ? 1 : 0) : ""}`;
+      if (last) $("#vStat").textContent = "Checking video...";
+      r = await api(url, {method: "POST", body: f.slice(off, off + CH)});
+      const sent = Math.min(f.size, off + CH);
+      $("#vProg").style.width = (100 * sent / f.size) + "%";
+      if (!last) $("#vStat").textContent = `${(sent / 2**20).toFixed(0)} / ${(f.size / 2**20).toFixed(0)} MB  ·  ${(sent / 2**20 / ((Date.now() - t0) / 1000)).toFixed(1)} MB/s`;
+      if (last) break;
+    }
+    show($("#vMsg"), r.message + (r.camera ? ` - test camera "${r.camera}" created. Next: draw the ROI.` : ""), "ok");
+    $("#vStat").textContent = ""; $("#vFile").value = "";
+    camsSig = ""; await refresh(); await loadVideos();
+    if (r.camera) setTimeout(() => { const c = camById(r.camera); if (c) openCam(c); }, 1500);
+  } catch (e) { show($("#vMsg"), "Upload failed: " + e.message, "err"); $("#vStat").textContent = ""; }
+  finally { $("#bVUp").disabled = false; }
+};
+
+// ---------- tuning ----------
+const TGROUPS = [
+  ["Detection - find far / small faces", [
+    ["inference.det_size", "Detector resolution (px)", "Higher finds smaller, farther faces (a bit slower), but can miss faces very close to the camera. 640 = near camera, 1280 = far CCTV, 1600-1920 = very far.", 32],
+    ["inference.det_thresh", "Detection confidence", "Lower finds more angled / far faces; too low gives false boxes. 0.40-0.55.", 0.01],
+    ["inference.track_thresh", "Tracking confidence", "Keeps following a face through weaker frames.", 0.01],
+    ["inference.low_light_boost", "Low-light boost", "Brightens dark frames (night, backlight)."]]],
+  ["Face quality - which frames are used", [
+    ["quality.min_face_px", "Minimum face size (px)", "Smaller faces show grey 'Too small' and are ignored. Check 'Faces seen right now' above and set a little below the usual size. Below ~32 px accuracy drops sharply.", 1],
+    ["quality.min_det_score", "Face confidence for full weight", "Soft rule: a less clear face is still used, it just counts less. No frame is thrown away.", 0.01],
+    ["quality.min_sharpness", "Sharpness for full weight", "Soft rule: blurry frames (walking people) are still used, they just count less (CCTV: 6-15, close camera: 25).", 1],
+    ["quality.max_yaw", "Side angle for full weight", "Soft rule: side views are still used, beyond this angle they count less. 0.45 = nearly frontal, 0.75 = side view.", 0.01]]],
+  ["Recognition - who is it", [
+    ["recognition.match_threshold", "Match threshold", "Similarity needed. Higher = no wrong names, lower = recognises difficult angles. Usually 0.40-0.50.", 0.01],
+    ["recognition.margin", "Margin to 2nd best", "Best employee must beat the next one by this much. Prevents mix-ups; keep at least 0.06.", 0.01],
+    ["recognition.frame_threshold", "Per-frame vote threshold", "Similarity for a single frame to vote for an employee.", 0.01],
+    ["recognition.min_frames", "Frames before deciding", "Fewer = faster for people walking past quickly, more = safer.", 1],
+    ["recognition.vote_ratio", "Agreement ratio", "Share of recent frames that must agree on the same person.", 0.05]]],
+  ["Anti-spoofing (liveness)", [
+    ["liveness.enabled", "Liveness check on", "Anti-spoofing model: blocks photos / phone screens held up to the camera."],
+    ["liveness.min_face_px", "Minimum face size for liveness (px)", "The model runs on faces at least this big. Smaller (far) faces are recognised without the liveness check, never blocked.", 1],
+    ["liveness.min_frames", "Frames averaged", "The model's score is averaged over this many recent frames (1-2 = fast decision).", 1],
+    ["liveness.real_threshold", "Real score needed", "Average real score needed for attendance.", 0.01],
+    ["liveness.spoof_threshold", "Fake score", "Average below this = FAKE FACE alert, attendance blocked.", 0.01]]],
+  ["Registration", [
+    ["enrollment.min_face_px", "Minimum face size for captured photos (px)", "For capturing employees from a far CCTV video use 48-60. Uploaded photos are upscaled automatically.", 1]]],
+];
+async function loadTuning() {
+  TUNE = await api("/api/tuning");
+  $("#tGroups").innerHTML = TGROUPS.map(([title, fields]) => `<div class="card"><h3>${title}</h3>${fields.map(([k, label, help, step]) => {
+    const v = TUNE.values[k], d = TUNE.defaults[k];
+    const input = typeof v === "boolean" ? `<input type="checkbox" data-k="${k}" ${v ? "checked" : ""}>` : `<input type="number" data-k="${k}" value="${v}" step="${step}">`;
+    return `<div class="field"><b>${label}</b>${input}<small>${help} <i>(config default: ${d})</i></small></div>`;
+  }).join("")}</div>`).join("");
+  document.querySelectorAll("#tGroups [data-k]").forEach(i => i.oninput = i.onchange = () => {
+    const v = i.type === "checkbox" ? i.checked : +i.value; i.classList.toggle("changed", v !== TUNE.values[i.dataset.k]);
+  });
+}
+$("#bTReload").onclick = () => { hide($("#tMsg")); loadTuning(); };
+$("#bTApply").onclick = async () => {
+  const values = {};
+  document.querySelectorAll("#tGroups [data-k]").forEach(i => { const v = i.type === "checkbox" ? i.checked : +i.value; if (v !== TUNE.values[i.dataset.k]) values[i.dataset.k] = v; });
+  if (!Object.keys(values).length) { show($("#tMsg"), "Nothing changed", "warn"); return; }
+  try { await jpost("/api/tuning", {values}, "PUT"); await loadTuning(); show($("#tMsg"), "Applied to all cameras - no restart needed.", "ok"); }
+  catch (e) { show($("#tMsg"), e.message, "err"); }
+};
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = async () => {
+  try { await jpost("/api/tuning", {preset: b.dataset.preset}, "PUT"); await loadTuning();
+    show($("#tMsg"), `Preset "${b.querySelector("b").textContent}" applied to all cameras.`, "ok"); }
+  catch (e) { show($("#tMsg"), e.message, "err"); }
+});
+
+// ---------- delete all data ----------
+$("#bWipe").onclick = () => { $("#wConfirm").value = ""; hide($("#wMsg")); $("#wipeModal").classList.add("show"); };
+$("#wCancel").onclick = () => $("#wipeModal").classList.remove("show");
+$("#wGo").onclick = async () => {
+  const parts = [...document.querySelectorAll(".wpart:checked")].map(x => x.value);
+  if (!parts.length) { show($("#wMsg"), "Select what to delete", "err"); return; }
+  if ($("#wConfirm").value.trim() !== "DELETE") { show($("#wMsg"), "Type DELETE to confirm", "err"); return; }
+  $("#wGo").disabled = true;
+  try {
+    const r = await jpost("/api/wipe", {parts, confirm: "DELETE"});
+    show($("#wMsg"), r.message, "ok"); SID = null; camsSig = "";
+    await refresh(); if (TAB === "register") await newSession(); if (TAB === "videos") loadVideos(); if (TAB === "employees") loadEmployees();
+    if (TAB === "reports") loadReport();
+  } catch (e) { show($("#wMsg"), e.message, "err"); }
+  finally { $("#wGo").disabled = false; }
+};
+</script>
+</body>
+</html>

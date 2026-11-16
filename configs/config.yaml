@@ -1,0 +1,134 @@
+# =============================================================================
+# Smart Gate Attendance - configuration
+# =============================================================================
+
+app:
+  data_dir: "data"              # SQLite DB, face samples, alert snapshots
+  reports_dir: "reports"        # auto-exported daily Excel files
+  log_dir: "logs"
+  log_level: "INFO"
+
+# -----------------------------------------------------------------------------
+# Inference (ONNX Runtime). backend: tensorrt | cuda | cpu  (falls back automatically)
+# Jetson / production GPU: use "tensorrt" (FP16 engines are cached in models/trt_cache)
+# -----------------------------------------------------------------------------
+inference:
+  backend: "cuda"
+  device_id: 0                  # GPU index (multi-GPU servers, e.g. 8x H100)
+  fp16: true                    # CUDA only: FP16 ArcFace (faster, same accuracy). Auto-created once.
+  detector: "models/det_10g.onnx"            # SCRFD-10G face detector
+  recognizer: "models/w600k_r50.onnx"        # ArcFace R50 (WebFace600K)
+  liveness: "models/liveness_minifasnet.onnx" # MiniFASNet V2 (2.7x) + V1SE (4.0x) fused
+  det_size: 640                 # detector long side (multiple of 32). 480 = faster, 640 = farther faces
+  det_thresh: 0.50              # confidence to start a track
+  track_thresh: 0.30            # lower confidence still keeps an existing track alive
+  low_light_boost: true         # gamma boost for dark frames (night / backlit gates)
+
+# -----------------------------------------------------------------------------
+# Multi-frame decision (a single frame never marks attendance)
+# -----------------------------------------------------------------------------
+recognition:
+  match_threshold: 0.45         # fused-embedding similarity required
+  margin: 0.08                  # best employee must beat the 2nd best by this much
+  frame_threshold: 0.35         # per-frame similarity needed for a vote
+  min_frames: 2                 # good frames needed before deciding (fast: people walk past quickly)
+  vote_ratio: 0.50              # share of recent frames that must agree on the same employee
+  unknown_after_frames: 20      # good frames without a match -> "Unregistered" alert
+
+quality:                        # frames failing these are ignored (not counted)
+  min_face_px: 64
+  min_det_score: 0.60
+  min_sharpness: 25.0           # Laplacian variance of the aligned 112x112 face
+  max_yaw: 0.45                 # 0 = frontal, ~0.5 = strong side view
+  min_brightness: 35
+  max_brightness: 235
+
+liveness:                       # anti-spoofing = the MiniFASNet model's score only (no extra rules)
+  enabled: true
+  min_face_px: 80               # the model runs on faces this big; smaller (far) faces are not blocked
+  window: 15                    # liveness history per person (good frames)
+  min_frames: 2                 # model score averaged over the last N frames (fast decision)
+  real_threshold: 0.50          # average >= this -> real, attendance allowed
+  spoof_threshold: 0.30         # average < this -> FAKE FACE alert, attendance blocked
+  spoof_alert_seconds: 1.5      # log the alert only if the flag holds this long (screen shows it at once)
+
+tracking:
+  iou_threshold: 0.25
+  max_lost_seconds: 1.0
+
+# -----------------------------------------------------------------------------
+# Attendance
+#   The mode is chosen PER CAMERA in the dashboard (Cameras & Gates):
+#     unique   -> first passage of the day at that camera counts (every camera keeps its own record)
+#     multiple -> every passage counts
+#   "mode" below is only the default for cameras seeded from this file.
+# -----------------------------------------------------------------------------
+attendance:
+  mode: "unique"
+  cooldown_seconds: 30          # same person at the same camera within this time is one passage
+  excel_autosave_seconds: 30
+
+# What happens to the cameras when the app starts
+#   off    -> nothing opens (no webcam / stream / video) until you switch a camera on in the dashboard (demo, POC)
+#   resume -> every camera comes back in the mode it had (production, so a restart continues attendance)
+startup:
+  cameras: "off"
+
+# -----------------------------------------------------------------------------
+# Initial cameras. Used ONLY on the first start (or after reset_system.py); afterwards cameras are
+# added / edited in the dashboard and stored in the database. All cameras start in SETUP mode.
+# source: 0 / 1 (USB webcam) | "rtsp://user:pass@ip:554/stream" | GStreamer pipeline | video file
+# roi: polygon in normalized (x, y); only faces whose center is inside are processed
+# attendance_mode (optional): unique | multiple
+# -----------------------------------------------------------------------------
+gates:
+  - id: "gate_1"
+    name: "Gate 1"
+    cameras:
+      - id: "gate_1_entry"
+        enabled: true
+        direction: "ENTRY"
+        source: 0
+        width: 1280
+        height: 720
+        fps: 30
+        roi: [[0.05, 0.03], [0.95, 0.03], [0.95, 0.97], [0.05, 0.97]]
+
+      - id: "gate_1_exit"
+        enabled: false
+        direction: "EXIT"
+        source: "rtsp://<user>:<password>@<camera-ip>:554/Streaming/Channels/101"
+        width: 1920
+        height: 1080
+        fps: 25
+        roi: [[0.05, 0.03], [0.95, 0.03], [0.95, 0.97], [0.05, 0.97]]
+
+# -----------------------------------------------------------------------------
+# Output
+# -----------------------------------------------------------------------------
+display:
+  window: true                  # OpenCV window per camera (turn off on headless servers / Jetson)
+  annotate: true                # draw boxes / HUD (needed for window, web preview and recording)
+
+recording:
+  enabled: false                # save annotated video per camera (costs some FPS)
+  dir: "outputs"
+  fps: 25
+
+web:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8000
+  api_key: ""                   # set a value in production; the dashboard will ask for it
+  stream_fps: 10                # preview only; recognition always runs on every camera frame it can
+  stream_quality: 65            # lighter preview = no lag through tunnels / slow client internet
+  stream_max_width: 960         # preview size sent to the browser (smooth over the internet); 0 = full size
+  max_video_mb: 2048            # largest test video that can be uploaded from the dashboard (data/videos)
+
+enrollment:                     # photos are taken with the Capture button or uploaded; each one is quality-checked
+  samples: 12                   # recommended: 4 front, 2 + 2 sides, 2 chin up, 2 chin down
+  min_samples: 12               # an employee needs at least 12 good photos ...
+  max_samples: 100              # ... and at most 100 are used
+  min_face_px: 110
+  liveness_check: true
+  duplicate_threshold: 0.50     # warn if the face already belongs to another employee
